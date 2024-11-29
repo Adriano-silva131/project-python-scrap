@@ -10,9 +10,8 @@ def cria_ordem(db: Session, ordem_data: dict):
     ).first()
     
     if ordem_existente:
-        return ordem_existente  # Retorna a ordem existente
+        return ordem_existente
     
-    # Se não existir, cria uma nova ordem
     ordem = Ordem(**ordem_data)
     db.add(ordem)
     db.commit()

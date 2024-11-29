@@ -13,5 +13,7 @@ class Ordem(Base):
     nome_arquivo = Column(String)
     created_at = Column(TIMESTAMP, server_default=func.now(), nullable=False)
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now(), nullable=False)
+    clientes = Column(String)
+    product = Column(String)
     
     camadas = relationship("Camada", back_populates="ordem")

@@ -1,5 +1,6 @@
 from services.ordem_service import cria_ordem
 from services.camada_service import cria_camada
+import pandas as pd
 from sqlalchemy.orm import Session
 
 
@@ -9,9 +10,11 @@ def insert_data_to_db(db: Session, data):
             'ordem': str(entry['Ordine']),
             'numero_pecas': entry['No. of pieces'],
             'quantidade_total': entry['Total Quantidades'],
-            'product_type': entry['Product Type'],
+            'product_type': entry['Product Type'] if not pd.isna(entry['Product Type']) else "Lado Par",
             'eficiencia': entry['Eficiencia'],
-            'nome_arquivo': entry['Nome Arquivo']
+            'nome_arquivo': entry['Nome Arquivo'],
+            'clientes': entry['clientes'],
+            'product': entry['Product']
         })
         
         cria_camada(db, ordem.id, {
@@ -29,5 +32,6 @@ def insert_data_to_db(db: Session, data):
             'comprimento_encolhimento': entry['Comprimento Encolhimento'],
             'gap_de_peca_cm': entry['Gap de peça (cm)'],
             'total_de_produtos': entry['Total de Produtos'],
-            'numeracao_do_produto': entry['Numeração do Produto']
+            'numeracao_do_produto': entry['Numeração do Produto'],
+            'sequencia': entry['Sequencia']
         })

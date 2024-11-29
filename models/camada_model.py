@@ -22,6 +22,6 @@ class Camada(Base):
     gap_de_peca_cm = Column(String)
     total_de_produtos = Column(Integer)
     numeracao_do_produto = Column(String)
-    
+    sequencia = Column(Integer)
     
     ordem = relationship("Ordem", back_populates="camadas")
