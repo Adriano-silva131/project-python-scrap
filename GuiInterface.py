@@ -1,4 +1,5 @@
 import sys
+import math
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -14,7 +15,6 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QCheckBox,
     QMessageBox,
-    QSpinBox,
 )
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import Qt
@@ -23,15 +23,18 @@ from models import Ordem
 from models import Camada
 from generate_pdf import generate_pdf
 from main import main
+from gui.PaginationWidget import PaginationWidget
+from services.directory_save import save_directory, load_directory
+from services.FolderWatcher import start_folder_watcher
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-
-        self.setWindowTitle("Dados da")
+        self.setWindowTitle("Dados do risco de enfesto")
         self.setGeometry(100, 100, 800, 600)
 
+        self.folder_observer = None
         self.current_page = 0
         self.page_size = 50
         self.total_pages = 0
@@ -56,22 +59,12 @@ class MainWindow(QMainWindow):
         self.search_bar.textChanged.connect(self.filter_table)
 
         self.update_button = QPushButton("Atualizar")
-        self.update_button.clicked.connect(self.update_data)
+        self.update_button.clicked.connect(self.load_data)
 
         self.select_dir_button = QPushButton("Selecionar Diretório")
         self.select_dir_button.clicked.connect(self.select_directory)
 
         self.selected_dir_label = QLabel("Diretório selecionado:")
-
-        self.prev_button = QPushButton("Anterior")
-        self.prev_button.clicked.connect(self.prev_page)
-        self.next_button = QPushButton("Próximo")
-        self.next_button.clicked.connect(self.next_page)
-
-        self.page_label = QLabel("Página:")
-        self.page_spinbox = QSpinBox()
-        self.page_spinbox.setMinimum(1)
-        self.page_spinbox.valueChanged.connect(self.go_to_page)
 
         button_layout = QHBoxLayout()
         layout = QVBoxLayout()
@@ -80,16 +73,28 @@ class MainWindow(QMainWindow):
         button_layout.addWidget(self.update_button)
         button_layout.addWidget(self.select_dir_button)
 
-        button_layout.addWidget(self.prev_button)
-        button_layout.addWidget(self.next_button)
-
         layout.addWidget(self.selected_dir_label)
         layout.addLayout(button_layout)
         layout.addWidget(self.table_widget)
 
+        self.pagination_widget = PaginationWidget(
+            total_pages=self.total_pages,
+            current_page=self.current_page,
+            on_page_change=self.change_page,
+        )
+        layout.addWidget(self.pagination_widget)
+
         container = QWidget()
         container.setLayout(layout)
         self.setCentralWidget(container)
+
+        saved_directory = load_directory()
+
+        if saved_directory:
+            self.selected_dir_label.setText(f"Diretório selecionado: {saved_directory}")
+            self.start_watching_directory(saved_directory)
+        else:
+            self.selected_dir_label.setText("Nenhum diretório selecionado.")
 
         self.load_data()
 
@@ -101,7 +106,8 @@ class MainWindow(QMainWindow):
             query = session.query(Ordem).filter((Ordem.ordem.ilike(f"%{search_text}%")))
 
             total_items = query.count()
-            self.total_pages = total_items + self.page_size - 1
+
+            self.total_pages = math.ceil(total_items / self.page_size)
 
             if total_items <= self.page_size:
                 ordens = query.all()
@@ -116,26 +122,27 @@ class MainWindow(QMainWindow):
             session.close()
             self.display_data(ordens)
 
-            self.prev_button.setEnabled(self.current_page > 0)
-            self.next_button.setEnabled(total_items > self.current_page and self.current_page < self.total_pages - 1)
-
         except Exception as e:
             print(f"Ocorreu um erro: {e}")
+
+    def start_watching_directory(self, directory):
+        if self.folder_observer:
+            self.folder_observer.stop()
+        self.folder_observer = start_folder_watcher(directory)
+        self.update_data()
 
     def load_data(self):
         session = SessionLocal()
 
         total_items = session.query(Ordem).count()
-        self.total_pages = total_items + self.page_size - 1
+        self.total_pages = math.ceil(total_items / self.page_size)
 
         offset = self.current_page * self.page_size
-
         ordens = session.query(Ordem).offset(offset).limit(self.page_size).all()
         session.close()
+
         self.display_data(ordens)
-        self.prev_button.setEnabled(self.current_page > 0)
-        self.next_button.setEnabled(self.current_page < self.total_pages - 1)
-        self.page_label.setText(f"Página: {self.current_page + 1} / {self.total_pages}")
+        self.pagination_widget.set_data(self.total_pages, self.current_page)
 
     def display_data(self, ordens):
         self.table_widget.setRowCount(len(ordens))
@@ -228,19 +235,34 @@ class MainWindow(QMainWindow):
         session.close()
 
     def update_data(self):
-        main()
-        self.load_data()
+        directory = (
+            self.selected_dir_label.text()
+            .replace("Diretório selecionado: ", "")
+            .strip()
+        )
+        if directory:
+            main(directory)  # Passe o caminho do diretório como argumento
+            self.load_data()
+        else:
+            QMessageBox.warning(
+                self, "Aviso", "Nenhum diretório selecionado para atualizar os dados!"
+            )
 
     def select_directory(self):
-        directory = QFileDialog.getExistingDirectory(self, "Selecione o Diretório")
-        if directory:
-            self.selected_dir_label.setText(f"Diretório selecionado: {directory}")
-            self.update_data(directory)
+        try:
+            directory = QFileDialog.getExistingDirectory(self, "Selecione o Diretório")
+            if directory:
+                self.selected_dir_label.setText(f"Diretório selecionado: {directory}")
+                save_directory(directory)
 
-    def update_data(self, directory_path=None):
-        if directory_path:
-            main(directory_path)
-        self.load_data()
+            if self.folder_observer:
+                self.folder_observer.stop()
+
+            self.folder_observer = start_folder_watcher(directory)
+            main(directory)
+            self.load_data()
+        except Exception as e:
+            print(f"Ocorreu um erro: {e}")
 
     def prev_page(self):
         if self.current_page > 0:
@@ -258,14 +280,9 @@ class MainWindow(QMainWindow):
         else:
             self.load_data()
 
-    def go_to_page(self):
-        selected_page = self.page_spinbox.value() - 1
-        if 0 <= selected_page < self.total_pages:
-            self.current_page = selected_page
-            if self.search_bar.text():
-                self.filter_table()
-            else:
-                self.load_data()
+    def change_page(self, page):
+        self.current_page = page
+        self.load_data()
 
 
 try:
