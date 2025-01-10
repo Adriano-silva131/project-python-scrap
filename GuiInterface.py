@@ -284,10 +284,18 @@ class MainWindow(QMainWindow):
     def select_directory(self):
         try:
             directory = QFileDialog.getExistingDirectory(self, "Selecione o Diretório")
+            
+            if not directory:
+                print("Nenhum diretório foi selecionado.")
+                return
+        
+            self.selected_dir_label.setText(f"Diretório selecionado: {directory}")
+            save_directory(directory)
+            
             if directory:
                 self.selected_dir_label.setText(f"Diretório selecionado: {directory}")
                 save_directory(directory)
-
+            
             if self.folder_observer:
                 self.folder_observer.stop()
 

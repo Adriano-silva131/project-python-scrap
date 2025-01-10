@@ -12,7 +12,10 @@ class FolderWatcher(FileSystemEventHandler):
         if not event.is_directory:
             print(f"Novo arquivo adicionado: {event.src_path}")
             main(self.directory)
-
+    def on_modified(self, event):
+        if not event.is_directory:
+            print(f"Arquivo modificado: {event.src_path}")
+            main(self.directory)
 
 def start_folder_watcher(directory):
     event_handler = FolderWatcher(directory)
