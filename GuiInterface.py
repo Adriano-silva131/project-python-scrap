@@ -18,15 +18,15 @@ from PyQt6.QtWidgets import (
     QMessageBox,
 )
 from PyQt6.QtGui import QIcon
-from PyQt5.QtCore import QTimer
 from config import SessionLocal
 from models import Ordem
 from models import Camada
 from generate_pdf import generate_pdf
 from main import main
 from gui.PaginationWidget import PaginationWidget
-from services.directory_save import save_directory, load_directory
+from services.directory_save import save_directory, load_directory, output_directory
 from services.FolderWatcher import start_folder_watcher
+from services.resourcePath import resource_path
 
 
 class MainWindow(QMainWindow):
@@ -65,7 +65,11 @@ class MainWindow(QMainWindow):
         self.select_dir_button = QPushButton("Selecionar Diretório")
         self.select_dir_button.clicked.connect(self.select_directory)
 
+        self.output_dir_button = QPushButton("Selecionar Diretório do PDF")
+        self.output_dir_button.clicked.connect(self.output_directory)
+
         self.selected_dir_label = QLabel("Diretório selecionado:")
+        self.output_dir_label = QLabel("Diretório do pdf selecionado:")
 
         button_layout = QHBoxLayout()
         layout = QVBoxLayout()
@@ -73,8 +77,10 @@ class MainWindow(QMainWindow):
         button_layout.addWidget(self.search_bar)
         button_layout.addWidget(self.update_button)
         button_layout.addWidget(self.select_dir_button)
+        button_layout.addWidget(self.output_dir_button)
 
         layout.addWidget(self.selected_dir_label)
+        layout.addWidget(self.output_dir_label)
         layout.addLayout(button_layout)
         layout.addWidget(self.table_widget)
 
@@ -157,7 +163,7 @@ class MainWindow(QMainWindow):
             self.table_widget.setItem(row_num, 3, QTableWidgetItem(ordem.nome_arquivo))
 
             extract_button = QPushButton("Visualizar Dados")
-            extract_button.setIcon(QIcon("src/pdf_icon.png"))
+            extract_button.setIcon(QIcon(resource_path("src/pdf_icon.png")))
             extract_button.clicked.connect(
                 lambda checked, row=row_num: self.extract_data(row)
             )
@@ -166,7 +172,7 @@ class MainWindow(QMainWindow):
             self.table_widget.setItem(row_num, 5, QTableWidgetItem(str(ordem.id)))
 
             pdf_button = QPushButton("Gerar PDF")
-            pdf_button.setIcon(QIcon("src/gerar_pdf.png"))
+            pdf_button.setIcon(QIcon(resource_path("src/gerar_pdf.png")))
             pdf_button.clicked.connect(
                 lambda checked, ordem=ordem: self.generate_pdf(ordem)
             )
@@ -223,7 +229,9 @@ class MainWindow(QMainWindow):
         print(f"Camadas selecionadas: {[c.camada for c in selected_camadas]}")
         if selected_camadas:
             generate_pdf(
-                ordem, selected_camadas, logo_path="src/cenciveste-removebg-preview.png"
+                ordem,
+                selected_camadas,
+                logo_path=resource_path("src/cenciveste-removebg-preview.png"),
             )
             dialog.accept()
         else:
@@ -232,7 +240,11 @@ class MainWindow(QMainWindow):
     def generate_pdf(self, ordem):
         session = SessionLocal()
         camadas = session.query(Camada).filter_by(ordem_id=ordem.id).all()
-        generate_pdf(ordem, camadas, logo_path="src/cenciveste-removebg-preview.png")
+        generate_pdf(
+            ordem,
+            camadas,
+            logo_path=resource_path("src/cenciveste-removebg-preview.png"),
+        )
         session.close()
 
     def update_data(self):
@@ -252,6 +264,7 @@ class MainWindow(QMainWindow):
 
                     except Exception as e:
                         print(f"Ocorreu um erro: {e}")
+
                 thread = threading.Thread(target=run_in_background, daemon=True)
                 thread.start()
 
@@ -280,6 +293,12 @@ class MainWindow(QMainWindow):
             self.load_data()
         except Exception as e:
             print(f"Ocorreu um erro: {e}")
+
+    def output_directory(self):
+        directory = QFileDialog.getExistingDirectory(self, "Diretório do pdf")
+        if directory:
+            self.output_dir_label.setText(f"Diretório do pdf selecionado: {directory}")
+            output_directory(directory)
 
     def prev_page(self):
         if self.current_page > 0:
