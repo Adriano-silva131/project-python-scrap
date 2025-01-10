@@ -24,7 +24,7 @@ from models import Camada
 from generate_pdf import generate_pdf
 from main import main
 from gui.PaginationWidget import PaginationWidget
-from services.directory_save import save_directory, load_directory, output_directory
+from services.directory_save import save_directory, load_directory, output_directory, load_output_directory
 from services.FolderWatcher import start_folder_watcher
 from services.resourcePath import resource_path
 
@@ -96,12 +96,15 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(container)
 
         saved_directory = load_directory()
-
+        saved_output_directory = load_output_directory()
         if saved_directory:
             self.selected_dir_label.setText(f"Diretório selecionado: {saved_directory}")
             self.start_watching_directory(saved_directory)
         else:
             self.selected_dir_label.setText("Nenhum diretório selecionado.")
+            
+        if saved_output_directory:
+            self.output_dir_label.setText(f"Diretório do pdf selecionado: {saved_output_directory}")
 
         self.load_data()
 
