@@ -5,6 +5,7 @@ from models.camada_model import Camada
 def cria_camada(db: Session, ordem_id: int, camada_data: dict):
     camada_existente = db.query(Camada).filter_by(
         camada=camada_data.get('camada'),
+        ordem_id = ordem_id,
         tamanhos_no_encaixe=camada_data.get('tamanhos_no_encaixe'),
         quantidade_enfesto=camada_data.get('quantidade_enfesto'),
         tecido=camada_data.get('tecido'),

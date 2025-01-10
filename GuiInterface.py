@@ -1,5 +1,6 @@
 import sys
 import math
+import threading
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -17,7 +18,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
 )
 from PyQt6.QtGui import QIcon
-from PyQt6.QtCore import Qt
+from PyQt5.QtCore import QTimer
 from config import SessionLocal
 from models import Ordem
 from models import Camada
@@ -240,13 +241,29 @@ class MainWindow(QMainWindow):
             .replace("Diretório selecionado: ", "")
             .strip()
         )
+
         if directory:
-            main(directory)  # Passe o caminho do diretório como argumento
-            self.load_data()
+            try:
+                self.load_data()
+
+                def run_in_background():
+                    try:
+                        main(directory)
+
+                    except Exception as e:
+                        print(f"Ocorreu um erro: {e}")
+                thread = threading.Thread(target=run_in_background, daemon=True)
+                thread.start()
+
+            except Exception as e:
+                QMessageBox.critical(self, "Erro", f"Ocorreu um erro inesperado: {e}")
         else:
             QMessageBox.warning(
                 self, "Aviso", "Nenhum diretório selecionado para atualizar os dados!"
             )
+
+    def show_message(self, message):
+        QMessageBox.information(self, "Aviso", message)
 
     def select_directory(self):
         try:
