@@ -1,22 +1,22 @@
 from sqlalchemy.orm import sessionmaker
 from config import engine
 from data import get_file_paths, extract_data_from_file, insert_data_to_db
+import os
 
 
 def main(directory_path):
-
     Session = sessionmaker(bind=engine)
     db = Session()
 
+    processed_files = {}
+
     file_paths = get_file_paths(directory_path)
-    all_data = []
-
     for file_path in file_paths:
-        extracted_data = extract_data_from_file(file_path)
-        all_data.extend(extracted_data)
+        modification_time = os.path.getmtime(file_path)
+        processed_files[file_path] = modification_time
 
-    insert_data_to_db(db, all_data)
-    print("Dados importados com sucesso!")
+        extracted_data = extract_data_from_file(file_path)
+        insert_data_to_db(db, extracted_data)
 
 
 if __name__ == "__main__":

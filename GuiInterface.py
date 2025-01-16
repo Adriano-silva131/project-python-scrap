@@ -24,9 +24,17 @@ from models import Camada
 from generate_pdf import generate_pdf
 from main import main
 from gui.PaginationWidget import PaginationWidget
-from services.directory_save import save_directory, load_directory, output_directory, load_output_directory
+from services.directory_save import (
+    save_directory,
+    load_directory,
+    output_directory,
+    load_output_directory,
+)
 from services.FolderWatcher import start_folder_watcher
 from services.resourcePath import resource_path
+from data import extract_data_from_file, insert_data_to_db
+import os
+import time
 
 
 class MainWindow(QMainWindow):
@@ -39,6 +47,7 @@ class MainWindow(QMainWindow):
         self.current_page = 0
         self.page_size = 50
         self.total_pages = 0
+        self.processed_files = {}
 
         self.table_widget = QTableWidget()
         self.table_widget.setColumnCount(7)
@@ -99,14 +108,37 @@ class MainWindow(QMainWindow):
         saved_output_directory = load_output_directory()
         if saved_directory:
             self.selected_dir_label.setText(f"Diretório selecionado: {saved_directory}")
+            self.initialize_data_in_background(saved_directory)
             self.start_watching_directory(saved_directory)
         else:
             self.selected_dir_label.setText("Nenhum diretório selecionado.")
-            
+
         if saved_output_directory:
-            self.output_dir_label.setText(f"Diretório do pdf selecionado: {saved_output_directory}")
+            self.output_dir_label.setText(
+                f"Diretório do pdf selecionado: {saved_output_directory}"
+            )
 
         self.load_data()
+
+    def load_data(self):
+        session = SessionLocal()
+
+        total_items = session.query(Ordem).count()
+        self.total_pages = math.ceil(total_items / self.page_size)
+
+        offset = self.current_page * self.page_size
+        ordens = session.query(Ordem).offset(offset).limit(self.page_size).all()
+        session.close()
+
+        self.display_data(ordens)
+        self.pagination_widget.set_data(self.total_pages, self.current_page)
+
+    def initialize_data_in_background(self, directory):
+        def run_initialization():
+            main(directory)
+
+        thread = threading.Thread(target=run_initialization, daemon=True)
+        thread.start()
 
     def filter_table(self):
         try:
@@ -138,21 +170,47 @@ class MainWindow(QMainWindow):
     def start_watching_directory(self, directory):
         if self.folder_observer:
             self.folder_observer.stop()
-        self.folder_observer = start_folder_watcher(directory)
-        self.update_data()
 
-    def load_data(self):
-        session = SessionLocal()
+        def on_file_change(file_path):
+            modification_time = os.path.getmtime(file_path)
 
-        total_items = session.query(Ordem).count()
-        self.total_pages = math.ceil(total_items / self.page_size)
+            if (
+                file_path not in self.processed_files
+                or self.processed_files[file_path] < modification_time
+            ):
+                self.processed_files[file_path] = modification_time
+                self.process_new_file(file_path)
 
-        offset = self.current_page * self.page_size
-        ordens = session.query(Ordem).offset(offset).limit(self.page_size).all()
-        session.close()
+        self.folder_observer = start_folder_watcher(directory, on_file_change)
+        print("Watcher iniciado.")
 
-        self.display_data(ordens)
-        self.pagination_widget.set_data(self.total_pages, self.current_page)
+    def process_new_file(self, file_path):
+        try:
+            max_retries = 5
+            retries = 0
+            while retries < max_retries:
+                try:
+                    with open(file_path, "rb"):
+                        break
+                except PermissionError:
+                    retries += 1
+                    print(
+                        f"Tentativa {retries} de {max_retries}: Arquivo bloqueado {file_path}. Retentando..."
+                    )
+                    time.sleep(1)
+            else:
+                print(
+                    f"Erro: Arquivo bloqueado após {max_retries} tentativas: {file_path}."
+                )
+                return
+
+            session = SessionLocal()
+            extracted_data = extract_data_from_file(file_path)
+            insert_data_to_db(session, extracted_data)
+            print(f"Arquivo processado: {file_path}")
+            session.close()
+        except Exception as e:
+            print(f"Erro ao processar {file_path}: {e}")
 
     def display_data(self, ordens):
         self.table_widget.setRowCount(len(ordens))
@@ -284,18 +342,18 @@ class MainWindow(QMainWindow):
     def select_directory(self):
         try:
             directory = QFileDialog.getExistingDirectory(self, "Selecione o Diretório")
-            
+
             if not directory:
                 print("Nenhum diretório foi selecionado.")
                 return
-        
+
             self.selected_dir_label.setText(f"Diretório selecionado: {directory}")
             save_directory(directory)
-            
+
             if directory:
                 self.selected_dir_label.setText(f"Diretório selecionado: {directory}")
                 save_directory(directory)
-            
+
             if self.folder_observer:
                 self.folder_observer.stop()
 
