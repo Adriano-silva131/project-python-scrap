@@ -20,15 +20,23 @@ class FolderWatcher(FileSystemEventHandler):
             self.process_file(event.src_path)
 
     def process_file(self, file_path):
-        modification_time = os.path.getmtime(file_path)
+        try:
+            if not os.path.exists(file_path):
+                print(f"Arquivo não encontrado: {file_path}")
+                return
 
-        if (
-            file_path not in self.processed_files
-            or self.processed_files[file_path] < modification_time
-        ):
-            self.processed_files[file_path] = modification_time
-            self.callback(file_path)
+            modification_time = os.path.getmtime(file_path)
 
+            if (
+                file_path not in self.processed_files
+                or self.processed_files[file_path] < modification_time
+            ):
+                self.processed_files[file_path] = modification_time
+                self.callback(file_path)
+        except FileNotFoundError:
+            print(f"Erro: O arquivo {file_path} não pôde ser encontrado ou acessado.")
+        except Exception as e:
+            print(f"Erro inesperado ao processar o arquivo {file_path}: {e}")
 
 def start_folder_watcher(directory, callback):
     event_handler = FolderWatcher(directory, callback)

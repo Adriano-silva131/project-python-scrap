@@ -364,7 +364,7 @@ def process_new_file(self, file_path):
             if self.folder_observer:
                 self.folder_observer.stop()
 
-            self.folder_observer = start_folder_watcher(directory)
+            self.folder_observer = start_folder_watcher(directory, self.process_new_file)
             main(directory)
             self.load_data()
         except Exception as e:
