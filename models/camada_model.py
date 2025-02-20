@@ -1,12 +1,13 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, Float
 from sqlalchemy.orm import relationship
 from config.database import Base
+
 
 class Camada(Base):
     __tablename__ = "camadas"
 
     id = Column(Integer, primary_key=True, index=True)
-    ordem_id = Column(Integer, ForeignKey('ordens.id'))
+    ordem_id = Column(Integer, ForeignKey("ordens.id"))
     camada = Column(String)
     tamanhos_no_encaixe = Column(String)
     quantidade_enfesto = Column(String)
@@ -23,5 +24,6 @@ class Camada(Base):
     total_de_produtos = Column(Integer)
     numeracao_do_produto = Column(String)
     sequencia = Column(Integer)
-    
+    spread = Column(Float)
+
     ordem = relationship("Ordem", back_populates="camadas")

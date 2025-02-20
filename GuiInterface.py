@@ -184,33 +184,40 @@ class MainWindow(QMainWindow):
         self.folder_observer = start_folder_watcher(directory, on_file_change)
         print("Watcher iniciado.")
 
-    def process_new_file(self, file_path):
-        try:
-            max_retries = 5
-            retries = 0
-            while retries < max_retries:
-                try:
+def process_new_file(self, file_path):
+    try:
+        max_retries = 10
+        retries = 0
+        wait_time = 1
+
+        while retries < max_retries:
+            try:
+                if os.path.exists(file_path):
                     with open(file_path, "rb"):
                         break
-                except PermissionError:
-                    retries += 1
-                    print(
-                        f"Tentativa {retries} de {max_retries}: Arquivo bloqueado {file_path}. Retentando..."
-                    )
-                    time.sleep(1)
-            else:
+                else:
+                    print(f"Arquivo não encontrado: {file_path}. Tentando novamente...")
+            except PermissionError:
+                retries += 1
                 print(
-                    f"Erro: Arquivo bloqueado após {max_retries} tentativas: {file_path}."
+                    f"Tentativa {retries} de {max_retries}: Arquivo bloqueado {file_path}. Retentando em {wait_time}s..."
                 )
-                return
+                time.sleep(wait_time)
+                wait_time *= 2
 
-            session = SessionLocal()
-            extracted_data = extract_data_from_file(file_path)
-            insert_data_to_db(session, extracted_data)
-            print(f"Arquivo processado: {file_path}")
-            session.close()
-        except Exception as e:
-            print(f"Erro ao processar {file_path}: {e}")
+        if retries == max_retries:
+            print(
+                f"Erro: Arquivo bloqueado após {max_retries} tentativas: {file_path}."
+            )
+            return
+
+        session = SessionLocal()
+        extracted_data = extract_data_from_file(file_path)
+        insert_data_to_db(session, extracted_data)
+        print(f"Arquivo processado: {file_path}")
+        session.close()
+    except Exception as e:
+        print(f"Erro ao processar {file_path}: {e}")
 
     def display_data(self, ordens):
         self.table_widget.setRowCount(len(ordens))
@@ -398,4 +405,4 @@ try:
 
     sys.exit(app.exec())
 except Exception as e:
-    print(f"Ocorreu um erro: {e}")
+    print(f"Ocorreu um erro na aplicacao principal: {e}")

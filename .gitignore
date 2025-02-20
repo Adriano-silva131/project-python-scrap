@@ -1,2 +1,4 @@
 .env
 planilhas/*
+config.ini
+alembic.ini
